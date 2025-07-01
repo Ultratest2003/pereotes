@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,6 +17,12 @@ type Question = {
   id: string;
   question_text: string;
   max_score: number;
+};
+
+type AnswerComment = {
+  id: string;
+  question_id: string;
+  comment: string;
 };
 
 type TestResultWithTest = {
@@ -84,6 +89,23 @@ const HistoryTab = () => {
     enabled: !!selectedResult?.test_id,
   });
 
+  // Получаем комментарии для выбранного результата теста
+  const { data: answerComments = [] } = useQuery({
+    queryKey: ['answer_comments', selectedResult?.id],
+    queryFn: async () => {
+      if (!selectedResult?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('answer_comments')
+        .select('*')
+        .eq('test_result_id', selectedResult.id);
+      
+      if (error) throw error;
+      return (data || []) as AnswerComment[];
+    },
+    enabled: !!selectedResult?.id,
+  });
+
   // Мутация для удаления результата теста
   const deleteResultMutation = useMutation({
     mutationFn: async (resultId: string) => {
@@ -147,11 +169,15 @@ const HistoryTab = () => {
   const getAnswersWithQuestions = () => {
     if (!selectedResult || !questions.length) return [];
     
-    return questions.map(question => ({
-      questionText: question.question_text,
-      userAnswer: selectedResult.answers[question.id] || 0,
-      maxScore: question.max_score
-    }));
+    return questions.map(question => {
+      const comment = answerComments.find(c => c.question_id === question.id);
+      return {
+        questionText: question.question_text,
+        userAnswer: selectedResult.answers[question.id] || 0,
+        maxScore: question.max_score,
+        comment: comment?.comment
+      };
+    });
   };
 
   const handleDeleteResult = (resultId: string) => {
@@ -446,6 +472,11 @@ const HistoryTab = () => {
                           <div className="text-sm text-gray-600">
                             Ответ: <span className="font-medium">{getScoreText(item.userAnswer, item.maxScore)}</span>
                           </div>
+                          {item.comment && (
+                            <div className="text-sm text-orange-600 mt-2 p-2 bg-orange-50 rounded">
+                              <span className="font-medium">Комментарий:</span> {item.comment}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

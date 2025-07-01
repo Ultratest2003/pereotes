@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,7 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
   
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [comments, setComments] = useState<Record<string, string>>({});
   const [showResults, setShowResults] = useState(false);
   const [testResults, setTestResults] = useState<{
     earnedScore: number;
@@ -41,6 +43,7 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
       questionText: string;
       userAnswer: number;
       maxScore: number;
+      comment?: string;
     }>;
   } | null>(null);
   
@@ -110,6 +113,24 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
         ...prev,
         [currentQuestion.id]: score
       }));
+      
+      // Очищаем комментарий если выбран максимальный балл
+      if (score === currentQuestion.max_score) {
+        setComments(prev => {
+          const newComments = { ...prev };
+          delete newComments[currentQuestion.id];
+          return newComments;
+        });
+      }
+    }
+  };
+
+  const handleCommentChange = (comment: string) => {
+    if (currentQuestion) {
+      setComments(prev => ({
+        ...prev,
+        [currentQuestion.id]: comment
+      }));
     }
   };
 
@@ -139,23 +160,25 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
 
     try {
       console.log('Completing test with answers:', answers);
+      console.log('Comments:', comments);
       
       // Подсчитываем результаты
       const earnedScore = Object.values(answers).reduce((sum, score) => sum + score, 0);
       const maxScore = questions.reduce((sum, q) => sum + q.max_score, 0);
       const percentage = Math.round((earnedScore / maxScore) * 100);
 
-      // Создаем массив ответов с текстами вопросов
+      // Создаем массив ответов с текстами вопросов и комментариями
       const answersWithQuestions = questions.map(question => ({
         questionText: question.question_text,
         userAnswer: answers[question.id] || 0,
-        maxScore: question.max_score
+        maxScore: question.max_score,
+        comment: comments[question.id] || undefined
       }));
 
       console.log('Test results:', { earnedScore, maxScore, percentage, answersWithQuestions });
 
       // Сохраняем результат в базу
-      const { error } = await supabase
+      const { data: testResult, error: testResultError } = await supabase
         .from('test_results')
         .insert({
           test_id: test.id,
@@ -168,11 +191,33 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
           percentage_score: percentage,
           started_at: new Date().toISOString(),
           completed_at: new Date().toISOString()
-        });
+        })
+        .select()
+        .single();
 
-      if (error) {
-        console.error('Error saving test result:', error);
-        throw error;
+      if (testResultError) {
+        console.error('Error saving test result:', testResultError);
+        throw testResultError;
+      }
+
+      // Сохраняем комментарии
+      const commentsToInsert = Object.entries(comments)
+        .filter(([questionId, comment]) => comment.trim() !== '')
+        .map(([questionId, comment]) => ({
+          test_result_id: testResult.id,
+          question_id: questionId,
+          comment: comment.trim()
+        }));
+
+      if (commentsToInsert.length > 0) {
+        const { error: commentsError } = await supabase
+          .from('answer_comments')
+          .insert(commentsToInsert);
+
+        if (commentsError) {
+          console.error('Error saving comments:', commentsError);
+          // Не блокируем завершение теста из-за ошибки комментариев
+        }
       }
 
       // Показываем результаты
@@ -239,6 +284,8 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
   }
 
   const selectedScore = answers[currentQuestion.id];
+  const currentComment = comments[currentQuestion.id] || '';
+  const needsComment = selectedScore !== undefined && selectedScore < currentQuestion.max_score;
 
   return (
     <>
@@ -270,7 +317,7 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
               )}
             </div>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="text-center p-4 border rounded-lg">
                 <Label className="block text-sm font-medium mb-2">1 балл</Label>
                 <Checkbox
@@ -293,6 +340,21 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
                 />
               </div>
             </div>
+
+            {needsComment && (
+              <div className="space-y-2">
+                <Label htmlFor="comment" className="text-sm font-medium text-orange-600">
+                  Комментарий (объясните, где была ошибка):
+                </Label>
+                <Textarea
+                  id="comment"
+                  placeholder="Опишите, в чем заключалась ошибка или неточность..."
+                  value={currentComment}
+                  onChange={(e) => handleCommentChange(e.target.value)}
+                  className="min-h-[80px]"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex justify-between">
@@ -305,7 +367,7 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
             </Button>
             <Button
               onClick={handleNext}
-              disabled={selectedScore === undefined}
+              disabled={selectedScore === undefined || (needsComment && currentComment.trim() === '')}
             >
               {currentQuestionIndex === questions.length - 1 ? 'Завершить тест' : 'Далее'}
             </Button>
@@ -350,6 +412,11 @@ const TestExecution: React.FC<TestExecutionProps> = ({ testId, accessCode, branc
                         <div className="text-sm text-muted-foreground">
                           Ответ: <span className="font-medium">{getScoreText(item.userAnswer, item.maxScore)}</span>
                         </div>
+                        {item.comment && (
+                          <div className="text-sm text-orange-600 mt-2">
+                            <span className="font-medium">Комментарий:</span> {item.comment}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
