@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[dev]
+  command = "npm run dev"
+  targetPort = 8080
+
+# Redirects (kept, Netlify will also read public/_redirects after build)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
