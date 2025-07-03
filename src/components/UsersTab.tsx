@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Trash2, Plus, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 type UserStatus = 'active' | 'inactive' | 'pending';
 
@@ -34,6 +35,22 @@ const UsersTab = () => {
   });
   
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Проверяем права администратора
+  if (!user || user.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Доступ запрещен</h3>
+          <p className="text-muted-foreground">
+            У вас нет прав для доступа к этой странице. Только администраторы могут управлять пользователями переаттестации.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Загружаем пользователей при монтировании компонента
   useEffect(() => {

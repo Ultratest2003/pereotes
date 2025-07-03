@@ -1,10 +1,12 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface User {
   id: string;
   email: string;
   name: string;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -60,31 +62,63 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Имитация API запроса
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Получаем зарегистрированных пользователей
-    const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
-    console.log('Registered users:', users);
-    
-    // Ищем пользователя
-    const foundUser = users.find((u: any) => u.email === email && u.password === password);
-    console.log('Found user:', foundUser);
-    
-    if (foundUser) {
-      const userData = { id: foundUser.id, email: foundUser.email, name: foundUser.name };
-      setUser(userData);
-      localStorage.setItem('currentUser', JSON.stringify(userData));
-      console.log('Login successful, user saved:', userData);
-      setIsLoading(false);
-      return true;
-    }
-    
-    // Проверяем, существует ли пользователь с таким email
-    const userExists = users.find((u: any) => u.email === email);
-    if (userExists) {
-      setLastError('Неверный пароль');
-      console.log('Wrong password for:', email);
-    } else {
-      setLastError('Пользователь с таким email не найден');
-      console.log('User not found:', email);
+    try {
+      // Получаем пользователя из базы данных
+      const { data: users, error } = await supabase
+        .from('site_users')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password);
+
+      if (error) {
+        console.error('Database error:', error);
+        setLastError('Ошибка подключения к базе данных');
+        setIsLoading(false);
+        return false;
+      }
+
+      console.log('Found users:', users);
+      
+      if (users && users.length > 0) {
+        const foundUser = users[0];
+        
+        // Проверяем, активен ли пользователь
+        if (foundUser.is_active === false) {
+          setLastError('Ваш аккаунт заблокирован. Обратитесь к администратору.');
+          console.log('User account is blocked:', email);
+          setIsLoading(false);
+          return false;
+        }
+
+        const userData = { 
+          id: foundUser.id, 
+          email: foundUser.email, 
+          name: foundUser.name,
+          role: foundUser.role || 'user'
+        };
+        setUser(userData);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+        console.log('Login successful, user saved:', userData);
+        setIsLoading(false);
+        return true;
+      }
+      
+      // Проверяем, существует ли пользователь с таким email
+      const { data: existingUsers } = await supabase
+        .from('site_users')
+        .select('email')
+        .eq('email', email);
+      
+      if (existingUsers && existingUsers.length > 0) {
+        setLastError('Неверный пароль');
+        console.log('Wrong password for:', email);
+      } else {
+        setLastError('Пользователь с таким email не найден');
+        console.log('User not found:', email);
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setLastError('Произошла ошибка при входе в систему');
     }
     
     setIsLoading(false);
@@ -99,35 +133,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Имитация API запроса
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    const users = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
-    const existingUser = users.find((u: any) => u.email === email);
-    
-    if (existingUser) {
-      setLastError('Пользователь с таким email уже существует');
+    try {
+      // Проверяем, существует ли пользователь с таким email
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('site_users')
+        .select('email')
+        .eq('email', email);
+
+      if (checkError) {
+        console.error('Database error:', checkError);
+        setLastError('Ошибка подключения к базе данных');
+        setIsLoading(false);
+        return false;
+      }
+
+      if (existingUsers && existingUsers.length > 0) {
+        setLastError('Пользователь с таким email уже существует');
+        setIsLoading(false);
+        console.log('User already exists:', email);
+        return false;
+      }
+      
+      // Добавляем нового пользователя в базу данных
+      const { data: newUser, error: insertError } = await supabase
+        .from('site_users')
+        .insert([{
+          email,
+          password,
+          name,
+          role: 'user',
+          is_active: true
+        }])
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Insert error:', insertError);
+        setLastError('Ошибка при создании пользователя');
+        setIsLoading(false);
+        return false;
+      }
+
+      console.log('User registered successfully:', email);
+      
+      const userData = { 
+        id: newUser.id, 
+        email: newUser.email, 
+        name: newUser.name,
+        role: newUser.role
+      };
+      setUser(userData);
+      localStorage.setItem('currentUser', JSON.stringify(userData));
+      console.log('Registration successful, user saved:', userData);
+      
       setIsLoading(false);
-      console.log('User already exists:', email);
+      return true;
+    } catch (error) {
+      console.error('Registration error:', error);
+      setLastError('Произошла ошибка при регистрации');
+      setIsLoading(false);
       return false;
     }
-    
-    const newUser = {
-      id: Date.now().toString(),
-      email,
-      password,
-      name
-    };
-    
-    users.push(newUser);
-    localStorage.setItem('registeredUsers', JSON.stringify(users));
-    console.log('User registered successfully:', email);
-    console.log('Updated users list:', users);
-    
-    const userData = { id: newUser.id, email: newUser.email, name: newUser.name };
-    setUser(userData);
-    localStorage.setItem('currentUser', JSON.stringify(userData));
-    console.log('Registration successful, user saved:', userData);
-    
-    setIsLoading(false);
-    return true;
   };
 
   const logout = () => {

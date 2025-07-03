@@ -113,83 +113,85 @@ const QuestionForm: React.FC<QuestionFormProps> = ({ testId, question, onSave, o
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="max-h-96 w-full">
-          <form onSubmit={handleSubmit} className="space-y-4 pr-4">
-            <div className="space-y-2">
-              <Label htmlFor="question_text">Текст вопроса</Label>
-              <Textarea
-                id="question_text"
-                value={formData.question_text}
-                onChange={(e) => setFormData({ ...formData, question_text: e.target.value })}
-                placeholder="Введите текст вопроса"
-                rows={3}
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <ScrollArea className="max-h-80 w-full pr-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="question_text">Текст вопроса</Label>
+                <Textarea
+                  id="question_text"
+                  value={formData.question_text}
+                  onChange={(e) => setFormData({ ...formData, question_text: e.target.value })}
+                  placeholder="Введите текст вопроса"
+                  rows={3}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="branch">Ветка</Label>
-              <Select
-                value={formData.branch}
-                onValueChange={(value) => setFormData({ ...formData, branch: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите ветку" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map((branch) => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      <div>
-                        <div className="font-medium">{branch.name}</div>
-                        <div className="text-sm text-muted-foreground">{branch.description}</div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="branch">Ветка</Label>
+                <Select
+                  value={formData.branch}
+                  onValueChange={(value) => setFormData({ ...formData, branch: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Выберите ветку" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        <div>
+                          <div className="font-medium">{branch.name}</div>
+                          <div className="text-sm text-muted-foreground">{branch.description}</div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="max_score">Максимальный балл</Label>
-              <Input
-                id="max_score"
-                type="number"
-                step="0.1"
-                min="0"
-                value={formData.max_score}
-                onChange={(e) => setFormData({ ...formData, max_score: parseFloat(e.target.value) || 1.0 })}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="max_score">Максимальный балл</Label>
+                <Input
+                  id="max_score"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={formData.max_score}
+                  onChange={(e) => setFormData({ ...formData, max_score: parseFloat(e.target.value) || 1.0 })}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="order_index">Порядковый номер</Label>
-              <Input
-                id="order_index"
-                type="number"
-                min="1"
-                value={formData.order_index}
-                onChange={(e) => setFormData({ ...formData, order_index: parseInt(e.target.value) || 1 })}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="order_index">Порядковый номер</Label>
+                <Input
+                  id="order_index"
+                  type="number"
+                  min="1"
+                  value={formData.order_index}
+                  onChange={(e) => setFormData({ ...formData, order_index: parseInt(e.target.value) || 1 })}
+                />
+              </div>
             </div>
+          </ScrollArea>
 
-            <div className="flex gap-2">
-              <Button 
-                type="submit" 
-                disabled={saveQuestionMutation.isPending}
-                className="flex-1"
-              >
-                {saveQuestionMutation.isPending ? 'Сохранение...' : 'Сохранить'}
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onCancel}
-                className="flex-1"
-              >
-                Отмена
-              </Button>
-            </div>
-          </form>
-        </ScrollArea>
+          <div className="flex gap-2 pt-4 border-t">
+            <Button 
+              type="submit" 
+              disabled={saveQuestionMutation.isPending}
+              className="flex-1"
+            >
+              {saveQuestionMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onCancel}
+              className="flex-1"
+            >
+              Отмена
+            </Button>
+          </div>
+        </form>
       </CardContent>
     </Card>
   );
